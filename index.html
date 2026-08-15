@@ -112,7 +112,7 @@
     border-top:2px solid var(--ink);flex-wrap:wrap;
   }
   #officerBar{
-    position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:19;
+    position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:21;
     display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:96vw;
   }
   .abilbtn{
@@ -192,8 +192,8 @@
   #peerAudios{position:fixed;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;}
 
   #logWrap{
-    position:fixed;left:50%;bottom:74px;transform:translateX(-50%);z-index:16;
-    width:min(560px,90vw);display:flex;flex-direction:column;align-items:center;pointer-events:none;
+    position:fixed;left:10px;bottom:118px;z-index:16;
+    width:min(360px,46vw);display:flex;flex-direction:column;align-items:flex-start;pointer-events:none;
   }
   #logLines{display:flex;flex-direction:column-reverse;gap:2px;width:100%;align-items:center;}
   .logLine{
@@ -203,8 +203,8 @@
   .logLine.system{color:var(--brass-bright);}
   .logLine.fade{opacity:0;}
   #chatInput{
-    position:fixed;left:50%;bottom:54px;transform:translateX(-50%);z-index:26;display:none;
-    width:min(420px,90vw);background:rgba(20,18,12,.88);border:1px solid var(--brass);color:#f0e9d2;
+    position:fixed;left:10px;bottom:80px;z-index:26;display:none;
+    width:min(360px,46vw);background:rgba(20,18,12,.88);border:1px solid var(--brass);color:#f0e9d2;
     border-radius:4px;padding:6px 10px;font-family:var(--font-mono);font-size:13px;outline:none;
   }
   #chatInput.show{display:block;}
@@ -222,7 +222,7 @@
 
   #selInfo{font-size:11px;flex:1;opacity:.96;min-width:210px;max-width:380px;
     background:rgba(20,18,12,.55);border:1px solid var(--paper-edge);border-radius:4px;
-    padding:6px 10px;color:var(--paper);}
+    padding:6px 10px;color:var(--paper);max-height:60px;overflow-y:auto;}
   .sel-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
   .sel-row b{font-family:var(--font-head);font-size:13px;color:var(--brass-bright);}
   .sel-chip{background:rgba(184,134,59,.22);border:1px solid var(--brass);border-radius:10px;
@@ -706,7 +706,7 @@ const Sound = (function(){
   }
   function unlock(){
     if(unlocked) return; unlocked=true;
-    if(ensure()){ resume(); startAmbient(); }
+    if(ensure()){ resume(); startAmbient(); startMenuMusic(); }
   }
   function resume(){ if(actx && actx.state==='suspended') actx.resume(); }
   function noise(dur){
@@ -766,7 +766,91 @@ const Sound = (function(){
     };
     tick();
   }
-  return {unlock,resume,shot,boom,death,ui,startAmbient};
+  /* ----------------------- MENU MUSIC — marcia stile WW2 (sintetizzata) ----------------------- */
+  const noteFreq = m => 440*Math.pow(2,(m-69)/12);
+  const MENU_STEPS = 16, MENU_STEP_DUR = 0.2;
+  const MELODY = [65,null,72,null, 74,null,72,65, 70,null,77,null, 76,null,74,72];
+  const BASS   = [65,65,70,70, 65,65,72,72];
+  const PAD    = [[65,69,72],[70,74,77]]; /* F maggiore · Bb maggiore */
+  let menuMusic = { playing:false, timer:null, step:0, nextTime:0, bus:null, delay:null, fb:null };
+  function hornNote(freq,t,dur,vol){
+    const osc=actx.createOscillator(); osc.type='sawtooth'; osc.frequency.value=freq;
+    const f=actx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=1500; f.Q.value=0.6;
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    osc.connect(f); f.connect(g); g.connect(menuMusic.bus); osc.start(t); osc.stop(t+dur+0.05);
+  }
+  function padNote(freq,t,dur,vol){
+    const osc=actx.createOscillator(); osc.type='sawtooth'; osc.frequency.value=freq;
+    const f=actx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=900; f.Q.value=0.4;
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.25);
+    g.gain.setValueAtTime(vol,t+dur-0.3); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    osc.connect(f); f.connect(g); g.connect(menuMusic.bus); osc.start(t); osc.stop(t+dur+0.05);
+  }
+  function bassNote(freq,t,dur,vol){
+    const osc=actx.createOscillator(); osc.type='triangle'; osc.frequency.value=freq;
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    osc.connect(g); g.connect(menuMusic.bus); osc.start(t); osc.stop(t+dur+0.03);
+  }
+  function kick(t,vol){
+    const osc=actx.createOscillator(); osc.type='sine';
+    osc.frequency.setValueAtTime(140,t); osc.frequency.exponentialRampToValueAtTime(45,t+0.12);
+    const g=actx.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0008,t+0.18);
+    osc.connect(g); g.connect(master); osc.start(t); osc.stop(t+0.2);
+  }
+  function snare(t,vol){
+    const src=actx.createBufferSource(); src.buffer=noise(0.18);
+    const f=actx.createBiquadFilter(); f.type='highpass'; f.frequency.value=1200;
+    const g=actx.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0008,t+0.16);
+    src.connect(f); f.connect(g); g.connect(master); src.start(t); src.stop(t+0.18);
+  }
+  function playMenuStep(step,t){
+    if(step%8===0){
+      const chord=PAD[Math.floor(step/8)%PAD.length];
+      chord.forEach(n=> padNote(noteFreq(n), t, MENU_STEP_DUR*8, 0.05));
+    }
+    const m=MELODY[step];
+    if(m!=null) hornNote(noteFreq(m), t, 0.22, 0.15);
+    if(step%2===0){
+      const b=BASS[(step/2)%BASS.length];
+      bassNote(noteFreq(b), t, 0.26, 0.12);
+      if(step%8===0) kick(t,0.45);
+      else if(step%8===4){ kick(t,0.3); snare(t,0.22); }
+      else snare(t,0.14);
+    }
+  }
+  function scheduleMenu(){
+    if(!menuMusic.playing || !actx) return;
+    while(menuMusic.nextTime < actx.currentTime + 0.25){
+      playMenuStep(menuMusic.step, menuMusic.nextTime);
+      menuMusic.step = (menuMusic.step+1) % MENU_STEPS;
+      menuMusic.nextTime += MENU_STEP_DUR;
+    }
+    menuMusic.timer = setTimeout(scheduleMenu, 60);
+  }
+  function startMenuMusic(){
+    if(menuMusic.playing) return;
+    if(!ensure()) return; resume();
+    const bus=actx.createGain(); bus.gain.value=0.9; bus.connect(master);
+    const delay=actx.createDelay(); delay.delayTime.value=0.27;
+    const fb=actx.createGain(); fb.gain.value=0.22;
+    const wet=actx.createGain(); wet.gain.value=0.32;
+    bus.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(master);
+    menuMusic.bus=bus; menuMusic.delay=delay; menuMusic.fb=fb;
+    menuMusic.playing=true; menuMusic.step=0; menuMusic.nextTime=actx.currentTime+0.15;
+    scheduleMenu();
+  }
+  function stopMenuMusic(){
+    menuMusic.playing=false;
+    if(menuMusic.timer){ clearTimeout(menuMusic.timer); menuMusic.timer=null; }
+    [menuMusic.bus,menuMusic.delay,menuMusic.fb].forEach(n=>{ if(n){ try{ n.disconnect(); }catch(e){} } });
+    menuMusic.bus=menuMusic.delay=menuMusic.fb=null;
+  }
+  return {unlock,resume,shot,boom,death,ui,startAmbient,startMenuMusic,stopMenuMusic};
 })();
 window.addEventListener('pointerdown', ()=>Sound.unlock(), true);
 window.addEventListener('keydown', ()=>Sound.unlock(), true);
@@ -2346,7 +2430,7 @@ function drawMinimap(){
   if(!gameStarted || !world) return;
   const vw=window.innerWidth, vh=window.innerHeight;
   const mw=190, mh=Math.round(mw*WORLD_H/WORLD_W), pad=12;
-  const x0=vw-mw-pad, y0=vh-mh-pad-72;
+  const x0=vw-mw-pad, y0=vh-mh-pad-150;
   const sx=mw/WORLD_W, sy=mh/WORLD_H;
   ctx.save();
   ctx.fillStyle='rgba(18,16,11,0.86)'; ctx.strokeStyle='#b8863b'; ctx.lineWidth=2;
@@ -3184,6 +3268,7 @@ document.getElementById('enterBtn').addEventListener('click', ()=>{
   document.getElementById('idCallsign').textContent = myCallsign;
   document.getElementById('app').classList.add('in-game');
   gameStarted = true;
+  Sound.stopMenuMusic();
   Sound.startAmbient();
   buildMissionTicketsUI();
   updatePeerListUI();
