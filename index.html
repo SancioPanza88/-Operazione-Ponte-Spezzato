@@ -872,7 +872,7 @@ function drawParticles(now){
   ctx.save();
   const zs = Math.min(1, 1.4/zoom);
   particles.forEach(p=>{
-    const t=(now-p.createdAt)/p.life;
+    const t=Math.max(0,Math.min(1,(now-p.createdAt)/p.life));
     p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=(p.grav||0)*dt; p.vx*=0.985; p.vy*=0.985;
     const alpha=1-t;
     if(p.type==='smoke'){
@@ -1209,7 +1209,7 @@ function drawExplosions(now){
   const zs = Math.min(1, 1.4/zoom);
   explosions = explosions.filter(e=> now-e.createdAt < e.life);
   explosions.forEach(e=>{
-    const t=(now-e.createdAt)/e.life;
+    const t=Math.max(0,(now-e.createdAt)/e.life);
     const r = e.maxR*Math.min(1,t*2.2)*zs;
     const alpha = 1-t;
     ctx.save();
