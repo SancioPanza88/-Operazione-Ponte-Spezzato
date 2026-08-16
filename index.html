@@ -864,7 +864,7 @@ function spawnDeathBurst(x,y){
   for(let i=0;i<14;i++){ const a=Math.random()*Math.PI*2, sp=rand(25,120);
     particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:rand(250,600),createdAt:simNow,size:rand(1.5,4),color:Math.random()<0.5?'#9a8c6a':'#c0392b',type:'spark',grav:60}); }
 }
-function onUnitDeath(u){ u.deathAt = simNow; spawnDeathBurst(u.x,u.y); if(inView(u.x,u.y)){ Sound.death(); addShake(3); } }
+function onUnitDeath(u){ u.deathAt = simNow; spawnDeathBurst(u.x,u.y); if(inView(u.x,u.y)){ Sound.death(); addShake(2.5); } }
 function drawParticles(now){
   const dt=Math.min(0.05,(now-(lastRenderNow||now))/1000); lastRenderNow=now;
   particles=particles.filter(p=> now-p.createdAt<p.life);
@@ -1203,7 +1203,7 @@ function spawnExplosion(x,y,maxR){
   maxR = maxR||30;
   explosions.push({x,y,maxR, createdAt:simNow, life:500});
   spawnExplosionParticles(x,y,maxR);
-  if(inView(x,y)){ Sound.boom(maxR>40); addShake(Math.min(8, maxR*0.12)); }
+  if(inView(x,y)){ Sound.boom(maxR>40); addShake(Math.min(6, maxR*0.1)); }
 }
 function drawExplosions(now){
   const zs = Math.min(1, 1.4/zoom);
@@ -2430,29 +2430,31 @@ function render(now){
   frameDt = Math.min(0.05, (now-(render._last||now))/1000); render._last = now;
   ctx.clearRect(0,0,viewW,viewH);
   ctx.save();
-  ctx.scale(zoom,zoom);
-  let shx=0, shy=0;
-  if(shake>0.1){ shx=(Math.random()-0.5)*shake/zoom; shy=(Math.random()-0.5)*shake/zoom; }
-  ctx.translate(-camera.x+shx,-camera.y+shy);
+  try {
+    ctx.scale(zoom,zoom);
+    let shx=0, shy=0;
+    if(shake>0.1){ shx=(Math.random()-0.5)*shake/zoom; shy=(Math.random()-0.5)*shake/zoom; }
+    ctx.translate(-camera.x+shx,-camera.y+shy);
 
-  drawTerrain();
-  drawScorches(now);
-  drawOrderMarkers(now);
-  if(gameStarted){
-    npcSquads.forEach(s=> interpolatedUnitsForDraw(s, now).forEach(u=>drawUnit(u,false)));
-    remotePlayers.forEach(p=> interpolatedUnitsForDraw(p, now).forEach(u=>drawUnit(u,false)));
-    myUnits.forEach(u=>drawUnit(u,true));
-    drawTracers(now);
-    drawArcProjectiles(grenades, '#4a5a34', 4, now);
-    drawArcProjectiles(shells, '#2a2a22', 5, now);
-    drawAirPlanes(now);
-    drawSupplyDrops(now);
-    drawExplosions(now);
-    drawParticles(now);
-    drawChatBubbles(now);
+    drawTerrain();
+    drawScorches(now);
+    drawOrderMarkers(now);
+    if(gameStarted){
+      npcSquads.forEach(s=> interpolatedUnitsForDraw(s, now).forEach(u=>drawUnit(u,false)));
+      remotePlayers.forEach(p=> interpolatedUnitsForDraw(p, now).forEach(u=>drawUnit(u,false)));
+      myUnits.forEach(u=>drawUnit(u,true));
+      drawTracers(now);
+      drawArcProjectiles(grenades, '#4a5a34', 4, now);
+      drawArcProjectiles(shells, '#2a2a22', 5, now);
+      drawAirPlanes(now);
+      drawSupplyDrops(now);
+      drawExplosions(now);
+      drawParticles(now);
+      drawChatBubbles(now);
+    }
+  } finally {
+    ctx.restore();
   }
-
-  ctx.restore();
 
   if(isDragSelecting && dragStart && dragCurrentScreen){
     ctx.strokeStyle='rgba(216,166,79,0.9)'; ctx.fillStyle='rgba(216,166,79,0.15)';
