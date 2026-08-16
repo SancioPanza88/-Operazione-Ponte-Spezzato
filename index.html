@@ -369,6 +369,8 @@
         <span class="aicon">🪂</span><small>RINFORZI</small><span class="cd"></span></button>
       <button class="abilbtn" data-ability="resupply" title="Lancio rifornimento munizioni — richiede un Ufficiale in vita">
         <span class="aicon">📦</span><small>MUNIZIONI</small><span class="cd"></span></button>
+      <button class="abilbtn" data-ability="tank" title="Richiama un carro armato di rinforzo — richiede un Ufficiale in vita">
+        <span class="aicon">🚜</span><small>CARRO</small><span class="cd"></span></button>
     </div>
 
     <div id="bottomBar">
@@ -497,7 +499,8 @@ const OFFICER_ABILITIES = {
   artillery: { cooldown:90, duration:6.0, label:'Fuoco di Sbarramento', icon:'💥', dmg:70, radius:65 },
   airstrike: { cooldown:90, duration:1.4, label:'Attacco Aereo',        icon:'✈️', dmg:85, radius:50 },
   paratroop: { cooldown:120,duration:7.0, label:'Lancio Paracadutisti', icon:'🪂', count:2 },
-  resupply:  { cooldown:75, duration:5.5, label:'Lancio Munizioni',     icon:'📦', radius:50 }
+  resupply:  { cooldown:75, duration:5.5, label:'Lancio Munizioni',     icon:'📦', radius:50 },
+  tank:      { cooldown:120, duration:7.0, label:'Carro Armato',        icon:'🚜', count:1 }
 };
 const DEFEND_THRESHOLD_SEC = 90;
 const SUPPLY_CAPACITY = 9, SUPPLY_DWELL_SEC = 1.3;
@@ -1336,7 +1339,7 @@ function drawArcProjectiles(list, color, size, now){
    locali (unità proprie): si sincronizzano con i canali già esistenti. Il rifornimento
    munizioni invece è un oggetto condiviso e contendibile (vedi più sotto). */
 let armedAbility = null;
-const abilityCooldowns = {artillery:0, airstrike:0, paratroop:0, resupply:0};
+const abilityCooldowns = {artillery:0, airstrike:0, paratroop:0, resupply:0, tank:0};
 let airPlanes = [];
 let supplyDrops = [];
 
@@ -1369,6 +1372,7 @@ function triggerAbility(type, x, y){
   else if(type==='airstrike') callAirstrike(x,y);
   else if(type==='paratroop') callParatroopers(x,y);
   else if(type==='resupply') callResupply(x,y);
+  else if(type==='tank') callTank(x,y);
   logLine(myCallsign+' ha chiamato: '+OFFICER_ABILITIES[type].label, '#d9a64f', true);
   if(actions.chat) actions.chat.send({sys:true, text: myCallsign+' ha chiamato '+OFFICER_ABILITIES[type].label});
 }
@@ -1430,6 +1434,19 @@ function callParatroopers(x,y){
       startX:rel.x, startY:rel.y, landX:tx, landY:ty
     });
   }
+}
+function callTank(x,y){
+  const cfg = OFFICER_ABILITIES.tank;
+  const r = ROLES.tank;
+  const px = clamp(x+rand(-30,30), 20, WORLD_W-20), py = clamp(y+rand(-30,30), 20, WORLD_H-20);
+  myUnits.push({
+    id: uid(), ownerId:selfId, faction:myFaction, role:'tank', isNpc:false, isTank:true,
+    x:px, y:py, angle:rand(0,Math.PI*2), hp:r.hp, maxHp:r.hp,
+    ammo:r.maxAmmo, maxAmmo:r.maxAmmo, grenades:0, grenadeCooldown:0,
+    state:'idle', order:null, path:null, setupTimer:0, reloadTimer:0
+  });
+  spawnDust(px, py, true);
+  spawnExplosion(px, py, 26);
 }
 function callResupply(x,y){
   const cfg = OFFICER_ABILITIES.resupply;
@@ -1598,7 +1615,7 @@ function findNearestEnemy(u, list, maxAcquire){
   for(const o of list){
     if(o===u || o.state==='dead') continue;
     if(!isHostileTo(u,o)) continue;
-    if(o.isTank && u.role!=='antitank') continue; // solo l'anticarro individua i mezzi corazzati come bersaglio
+    if(o.isTank && u.role!=='antitank' && u.role!=='tank') continue; // anticarro e carri individuano i mezzi corazzati
     const d = dist(u,o);
     if(d<bestD){bestD=d;best=o;}
   }
@@ -1706,7 +1723,9 @@ function updateUnit(u, dt, ownList, hostileList){
     } else if(type==='attack'){
       const target = findNearestEnemy(u, hostileList, 480);
       if(target && dist(u,target)<=role.range){
-        faceToward(u,target); firing=fireAt(u,target,dt,ownList); u.state='attacking';
+        faceToward(u,target);
+        if(u.role==='tank'){ updateTankCombat(u,target,dt); firing=true; } else { firing=fireAt(u,target,dt,ownList); }
+        u.state='attacking';
       } else if(target){
         ensurePath(u,target.x,target.y); advanceAlongPath(u,dt,role); u.state='attacking';
       } else {
