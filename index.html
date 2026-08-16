@@ -1257,6 +1257,24 @@ function applyAoeDamage(x, y, radius, dmg, sourceIsNpc, sourceFaction, excludeTa
     const cover = coverMultiplier(o);
     applyDirectDamage(o, dmg*cover);
   });
+  damageObjectiveAt(x, y, radius, dmg, sourceFaction);
+}
+function damageObjectiveAt(x, y, radius, dmg, sourceFaction){
+  if(!world || !world.objectives) return;
+  world.objectives.forEach(o=>{
+    const obj = o.ref;
+    if(obj.destroyed) return;
+    const pad = obj.r || 24;
+    if(dist({x,y}, {x:o.cx, y:o.cy}) >= radius + pad) return;
+    obj.hp = Math.max(0, obj.hp - dmg);
+    pendingObjDamage[o.id] = (pendingObjDamage[o.id]||0) + dmg;
+    if(obj.hp<=0 && !obj.destroyed){
+      obj.destroyed = true;
+      spawnStructureDestroyed(o.cx, o.cy);
+      if(actions.objDestroy) actions.objDestroy.send({id:o.id});
+      checkRoundComplete();
+    }
+  });
 }
 
 let grenades = [];
