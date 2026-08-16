@@ -2428,7 +2428,10 @@ function render(now){
   const dpr = window.devicePixelRatio||1;
   const viewW = canvas.width/dpr, viewH = canvas.height/dpr;
   frameDt = Math.min(0.05, (now-(render._last||now))/1000); render._last = now;
-  ctx.clearRect(0,0,viewW,viewH);
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.restore();
   ctx.save();
   try {
     ctx.scale(zoom,zoom);
