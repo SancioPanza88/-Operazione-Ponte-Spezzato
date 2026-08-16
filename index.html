@@ -2026,7 +2026,7 @@ if(room){
 function serializeUnits(units){
   return units.map(u=>({id:u.id,role:u.role,x:Math.round(u.x),y:Math.round(u.y),
     angle:u.angle,hp:Math.round(u.hp),maxHp:u.maxHp,state:u.state,isNpc:false,faction:u.faction,
-    ownerId:u.ownerId,fortified:!!u.fortified}));
+    ownerId:u.ownerId,fortified:!!u.fortified,isTank:!!u.isTank}));
 }
 function serializeFullSync(){
   return {
@@ -2251,10 +2251,12 @@ SPRITE_FACTIONS.forEach(f=> SPRITE_FILES.push('assets/tank_'+f+'.png'));
 SPRITE_FILES.push('assets/tree_a.png','assets/tree_b.png','assets/house_a.png','assets/corpse.png');
 const SPRITES = {};
 let spritesReady = false;
+let spritesPending = SPRITE_FILES.length;
+function markSpriteDone(){ spritesPending--; if(spritesPending<=0){ spritesPending=0; spritesReady=true; } }
 SPRITE_FILES.forEach(f=>{
   const img = new Image();
-  img.onload = ()=>{ SPRITES[f] = img; };
-  img.onerror = ()=>{ /* assente: uso procedurale */ };
+  img.onload = ()=>{ SPRITES[f] = img; markSpriteDone(); };
+  img.onerror = ()=>{ /* assente: uso procedurale */ markSpriteDone(); };
   img.src = f;
 });
 function unitSpriteKey(u){
@@ -3392,7 +3394,7 @@ PLATOON.forEach(r=>{
   s.innerHTML = `${ROLE_ICONS[r]||'•'} <b>${ROLES[r].label}</b>`;
   roleLegend.appendChild(s);
 });
-document.getElementById('enterBtn').addEventListener('click', ()=>{
+function startGame(){
   if(!myFaction) return;
   Sound.unlock();
   myUnits = spawnPlatoon(selfId, myFaction);
@@ -3409,6 +3411,20 @@ document.getElementById('enterBtn').addEventListener('click', ()=>{
   updateVoiceAvailability();
   logLine('Hai preso il comando del plotone. Invio per parlare con gli altri comandanti.', '#d9a64f', true);
   if(actions.fullSync) actions.fullSync.send(serializeFullSync());
+}
+document.getElementById('enterBtn').addEventListener('click', ()=>{
+  if(!myFaction) return;
+  if(spritesReady){ startGame(); return; }
+  // gli sprite non sono ancora caricati: attendiamo (senza mostrare omini procedurali)
+  const btn = document.getElementById('enterBtn');
+  btn.disabled = true; btn.textContent = 'Caricamento sprite…';
+  const wait = setInterval(()=>{
+    if(spritesReady){
+      clearInterval(wait);
+      btn.textContent = 'Entra in battaglia';
+      startGame();
+    }
+  }, 60);
 });
 
 /* connection status polling (peer count updates even before entering) */
