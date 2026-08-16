@@ -1437,16 +1437,26 @@ function callParatroopers(x,y){
 }
 function callTank(x,y){
   const cfg = OFFICER_ABILITIES.tank;
-  const r = ROLES.tank;
-  const px = clamp(x+rand(-30,30), 20, WORLD_W-20), py = clamp(y+rand(-30,30), 20, WORLD_H-20);
-  myUnits.push({
-    id: uid(), ownerId:selfId, faction:myFaction, role:'tank', isNpc:false, isTank:true,
-    x:px, y:py, angle:rand(0,Math.PI*2), hp:r.hp, maxHp:r.hp,
-    ammo:r.maxAmmo, maxAmmo:r.maxAmmo, grenades:0, grenadeCooldown:0,
-    state:'idle', order:null, path:null, setupTimer:0, reloadTimer:0
-  });
-  spawnDust(px, py, true);
-  spawnExplosion(px, py, 26);
+  const angle = rand(0, Math.PI*2);
+  const planeLen = 460, planeLife = 3800;
+  const plane = {x1:x-Math.cos(angle)*planeLen, y1:y-Math.sin(angle)*planeLen,
+                 x2:x+Math.cos(angle)*planeLen, y2:y+Math.sin(angle)*planeLen,
+                 createdAt:simNow, life:planeLife};
+  airPlanes.push(plane);
+  for(let i=0;i<(cfg.count||1);i++){
+    const tx = x+rand(-45,45), ty = y+rand(-45,45);
+    const releaseT = 0.47 + i*0.035;
+    const rel = planeReleasePoint(plane, releaseT);
+    const r = ROLES.tank;
+    myUnits.push({
+      id: uid(), ownerId:selfId, faction:myFaction, role:'tank', isNpc:false, isTank:true,
+      x:rel.x, y:rel.y, angle:0, hp:r.hp, maxHp:r.hp,
+      ammo:r.maxAmmo, maxAmmo:r.maxAmmo, grenades:0, grenadeCooldown:0,
+      state:'descending', order:null, path:null, setupTimer:0, reloadTimer:0,
+      descending:true, descendStart:rel.at, descendLife:cfg.duration*1000,
+      startX:rel.x, startY:rel.y, landX:tx, landY:ty
+    });
+  }
 }
 function callResupply(x,y){
   const cfg = OFFICER_ABILITIES.resupply;
@@ -1525,11 +1535,22 @@ function drawAirPlanes(now){
 }
 function drawParachutingUnit(u){
   const fCol = FACTIONS[u.faction]?.color || '#666';
+  const isT = !!u.isTank;
+  const py = isT ? -48 : -16;          // altezza del paracadute
+  const bw = isT ? 14 : 3;             // semi-larghezza attacco funi al corpo
+  const by = isT ? -TANK_PX/2 : -3;    // y di attacco funi sul corpo
   ctx.save(); ctx.translate(u.x,u.y);
   ctx.fillStyle=fCol; ctx.strokeStyle='#1a1712'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.ellipse(0,-16,12,7,Math.PI,0,Math.PI,true); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-11,-16); ctx.lineTo(-3,-3); ctx.moveTo(11,-16); ctx.lineTo(3,-3); ctx.moveTo(0,-9); ctx.lineTo(0,-3); ctx.stroke();
-  ctx.fillStyle=fCol; ctx.beginPath(); ctx.ellipse(0,0,5,4,0,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#1a1712'; ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0,py,12,7,Math.PI,0,Math.PI,true); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-11,py); ctx.lineTo(-bw,by); ctx.moveTo(11,py); ctx.lineTo(bw,by); ctx.moveTo(0,py+7); ctx.lineTo(0,by); ctx.stroke();
+  if(isT){
+    const img = getTintedSprite(u);
+    ctx.rotate(u.angle||0);
+    if(img){ ctx.drawImage(img, -TANK_PX/2, -TANK_PX/2, TANK_PX, TANK_PX); }
+    else { ctx.fillStyle=fCol; ctx.fillRect(-TANK_PX/2,-TANK_PX/2,TANK_PX,TANK_PX); ctx.strokeRect(-TANK_PX/2,-TANK_PX/2,TANK_PX,TANK_PX); }
+  } else {
+    ctx.fillStyle=fCol; ctx.beginPath(); ctx.ellipse(0,0,5,4,0,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#1a1712'; ctx.stroke();
+  }
   ctx.restore();
   if(u.hp<u.maxHp){
     const w=16,h=3;
