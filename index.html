@@ -2495,16 +2495,33 @@ function startNewRound(){
    invece di "scattare" ogni volta che arriva un nuovo aggiornamento di rete (~150ms).
    Solo per il disegno: la logica di gioco (bersagli, alleanze, ecc.) usa sempre
    l'ultimo stato autoritativo (p.units), mai questa versione interpolata. */
+/* Ritardo di rendering: si disegna ~100ms "nel passato" cosi' al momento del
+   disegno abbiamo sempre uno snapshot futuro da cui interpolare. Cosi' la
+   velocita' risulta costante anche se gli arrivi di rete sono irregolari
+   (niente scatti ad ogni pacchetto). */
+const INTERP_DELAY = 150;
+function lerpAngle(a,b,t){
+  let d = (b-a) % (Math.PI*2);
+  if(d > Math.PI) d -= Math.PI*2;
+  if(d < -Math.PI) d += Math.PI*2;
+  return a + d*t;
+}
 function interpolatedUnitsForDraw(entry, now){
   if(!entry.prevUnits || !entry.targetAt) return entry.units;
   const span = entry.targetAt - entry.prevAt;
-  const t = span>0 ? clamp((now-entry.prevAt)/span, 0, 1) : 1;
+  if(span<=0) return entry.units;
+  let t = (now - INTERP_DELAY - entry.prevAt)/span;
   if(t>=1) return entry.units;
+  if(t<0) t=0;
   const prevById = new Map(entry.prevUnits.map(u=>[u.id,u]));
   return entry.units.map(tu=>{
     const pu = prevById.get(tu.id);
     if(!pu || tu.state==='dead' || pu.state==='dead') return tu;
-    return { ...tu, x: pu.x+(tu.x-pu.x)*t, y: pu.y+(tu.y-pu.y)*t };
+    return { ...tu,
+      x: pu.x+(tu.x-pu.x)*t,
+      y: pu.y+(tu.y-pu.y)*t,
+      angle: lerpAngle(pu.angle||0, tu.angle||0, t)
+    };
   });
 }
 function render(now){
